@@ -1,0 +1,104 @@
+# Snakemake configuration file for metagenomics pipeline
+
+# Common resources
+account: "research-ceg-wm"
+regular_partition: "compute"
+regular_memory: "3900" # MB
+
+# Sample information
+samples:
+  - sample1
+  - sample2
+
+# Directory structure
+input_dir: "0_rawdata"
+fastp_dir: "1_fastp"
+spades_dir: "2_spades_result"
+reformated_scaffolds_dir: "3_reformated_scaffolds"
+prodigal_dir: "4_prodigal"
+cdhit_dir: "5_cdhit"
+coverm_dir: "6_coverm"
+gtdb_dir: "7_GTDB"
+functional_annotation_dir: "8_functional_annotation"
+log_dir: "log"
+
+# Tool parameters
+fastp:
+  threads: 16
+  qualified_quality_phred: 20
+  length_required: 20
+  runtime: 120  # minutes
+  
+spades:
+  threads: 16
+  memory: 256
+  kmers: "21,33,55,77,101,121"
+  runtime: 1440  # minutes (24 hours)
+
+reformat_scaffolds:
+  min_length: 300
+  threads: 1
+  runtime: 60  # minutes
+
+prodigal:
+  mode: "meta"
+  threads: 1
+  runtime: 180  # minutes
+
+mmseqs2:
+  min_seq_id: 0.9
+  coverage: 0.9
+  threads: 14
+  runtime: 360  # minutes
+
+diamond:
+  threads: 14
+  evalue: 1e-5
+  max_hits: 10
+  runtime: 480  # minutes
+
+eggnog:
+  threads: 18
+  evalue: 1e-5
+  runtime: 720  # minutes
+
+coverm:
+  threads: 8
+  min_read_percent_identity: 90
+  min_read_aligned_percent: 50
+  min_covered_fraction: 0.5
+  contig_end_exclusion: 10
+  runtime: 240  # minutes
+
+merge_sequences:
+  threads: 1
+  runtime: 30  # minutes
+
+extract_sequences:
+  threads: 1
+  runtime: 60  # minutes
+
+# Database paths (adjust these paths according to your system)
+databases:
+  gtdb_diamond: "/data/database/GTDB_214.1_diamond/protein_faa_reps/GTDB214_dimond.dmnd"
+  gtdb_database: "/data/database/GTDB_214.1_diamond/GTDB_database"
+  eggnog_data_dir: "/data/database/eggnog"
+
+# Sample groups for different analysis
+sample_groups:
+  lab:
+    - sample1
+  osen:
+    - sample2
+
+# Environment/conda setup
+conda_envs:
+  fastp: "fastp"
+  anvio: "anvio-7.1"
+  prodigal: "prodigal"
+  mmseq2: "mmseq2"
+  diamond: "diomand"
+  eggnog: "eggnog"
+  coverm: "coverm"
+  seqkit: "seqkit"
+  base: "base"
