@@ -2,10 +2,8 @@ configfile: "config/config.yaml"
 
 rule all:
     input:
-        expand(config["gtdb_dir"] + "/{sample}/annotation.txt", 
-               sample=config["samples"]),
-        expand(config["functional_annotation_dir"] + "/{sample}_eggnogresult.emapper.annotations", 
-               sample=config["samples"]),
+        config["gtdb_dir"] + "/annotation.txt",
+        config["functional_annotation_dir"] + "/all_samples_eggnogresult.emapper.annotations",
         expand(config["coverm_dir"] + "/{sample}/coverm_{sample}.TPM.tsv", 
                sample=config["samples"])
 
@@ -146,19 +144,44 @@ rule prodigal_orfs:
                  -p {params.mode}
         """
 
+rule merge_sequences:
+    input:
+        nucl_files=expand(config["prodigal_dir"] + "/{sample}/nucl/{sample}.nucl.ffn",
+                         sample=config["samples"]),
+        amino_files=expand(config["prodigal_dir"] + "/{sample}/amino/{sample}.faa",
+                          sample=config["samples"])
+    output:
+        nucl_merged=config["cdhit_dir"] + "/all_samples_nucl_merged.fasta",
+        protein_merged=config["cdhit_dir"] + "/all_samples_protein_merged.fasta"
+    params:
+        cdhit_dir=config["cdhit_dir"]
+    threads: config["merge_sequences"]["threads"]
+    resources:
+        mem_mb_per_cpu=config["regular_memory"],
+        runtime=config["merge_sequences"]["runtime"],
+        cpus_per_task=config["merge_sequences"]["threads"],
+        slurm_partition=config["regular_partition"],
+        slurm_account=config["account"]
+    shell:
+        """
+        mkdir -p {params.cdhit_dir}
+        cat {input.nucl_files} > {output.nucl_merged}
+        cat {input.amino_files} > {output.protein_merged}
+        """
+
 rule mmseqs_clustering:
     input:
-        nucl_file=config["prodigal_dir"] + "/{sample}/nucl/{sample}.nucl.ffn"
+        nucl_merged=rules.merge_sequences.output.nucl_merged
     output:
-        cluster_rep=config["cdhit_dir"] + "/{sample}/{sample}_cluster_rep_seq.fasta",
-        cluster_all=config["cdhit_dir"] + "/{sample}/{sample}_cluster_all_seqs.fasta",
-        cluster_tsv=config["cdhit_dir"] + "/{sample}/{sample}_cluster.tsv"
+        cluster_rep=config["cdhit_dir"] + "/all_samples_cluster_rep_seq.fasta",
+        cluster_all=config["cdhit_dir"] + "/all_samples_cluster_all_seqs.fasta",
+        cluster_tsv=config["cdhit_dir"] + "/all_samples_cluster.tsv"
     params:
         min_seq_id=config["mmseqs2"]["min_seq_id"],
         coverage=config["mmseqs2"]["coverage"],
         threads=config["mmseqs2"]["threads"],
-        prefix=config["cdhit_dir"] + "/{sample}/{sample}_cluster",
-        tmp_dir=config["cdhit_dir"] + "/{sample}/tmp"
+        prefix=config["cdhit_dir"] + "/all_samples_cluster",
+        tmp_dir=config["cdhit_dir"] + "/tmp"
     threads: config["mmseqs2"]["threads"]
     resources:
         mem_mb_per_cpu=config["regular_memory"],
@@ -171,7 +194,7 @@ rule mmseqs_clustering:
     shell:
         """
         mkdir -p {params.tmp_dir}
-        mmseqs easy-cluster {input.nucl_file} \
+        mmseqs easy-cluster {input.nucl_merged} \
                            {params.prefix} \
                            {params.tmp_dir} \
                            --min-seq-id {params.min_seq_id} \
@@ -182,10 +205,10 @@ rule mmseqs_clustering:
 rule extract_sequences:
     input:
         cluster_rep=rules.mmseqs_clustering.output.cluster_rep,
-        protein_file=config["prodigal_dir"] + "/{sample}/amino/{sample}.faa"
+        protein_merged=rules.merge_sequences.output.protein_merged
     output:
-        unigene_id=config["cdhit_dir"] + "/{sample}/unigene_id.txt",
-        unigene_protein=config["cdhit_dir"] + "/{sample}/unigene_protein.fasta"
+        unigene_id=config["cdhit_dir"] + "/unigene_id.txt",
+        unigene_protein=config["cdhit_dir"] + "/unigene_protein.fasta"
     threads: config["extract_sequences"]["threads"]
     resources:
         mem_mb_per_cpu=config["regular_memory"],
@@ -198,14 +221,14 @@ rule extract_sequences:
     shell:
         """
         grep '>' {input.cluster_rep} | awk '{{print $1}}' | sed 's/>//' > {output.unigene_id}
-        seqkit grep -f {output.unigene_id} {input.protein_file} -o {output.unigene_protein}
+        seqkit grep -f {output.unigene_id} {input.protein_merged} -o {output.unigene_protein}
         """
 
 rule gtdb_annotation:
     input:
         protein=rules.extract_sequences.output.unigene_protein
     output:
-        annotation=config["gtdb_dir"] + "/{sample}/annotation.txt"
+        annotation=config["gtdb_dir"] + "/annotation.txt"
     params:
         gtdb_db=config["databases"]["gtdb_diamond"],
         threads=config["diamond"]["threads"],
@@ -223,7 +246,7 @@ rule gtdb_annotation:
         "envs/diamond.yaml"
     shell:
         """
-        mkdir -p {params.gtdb_dir}/{wildcards.sample}
+        mkdir -p {params.gtdb_dir}
         diamond blastp -d {params.gtdb_db} \
                       -q {input.protein} \
                       -o {output.annotation} \
@@ -238,12 +261,12 @@ rule eggnog_annotation:
     input:
         protein=rules.extract_sequences.output.unigene_protein
     output:
-        annotations=config["functional_annotation_dir"] + "/{sample}_eggnogresult.emapper.annotations"
+        annotations=config["functional_annotation_dir"] + "/all_samples_eggnogresult.emapper.annotations"
     params:
         threads=config["eggnog"]["threads"],
         evalue=config["eggnog"]["evalue"],
         data_dir=config["databases"]["eggnog_data_dir"],
-        output_prefix=config["functional_annotation_dir"] + "/{sample}_eggnogresult",
+        output_prefix=config["functional_annotation_dir"] + "/all_samples_eggnogresult",
         functional_annotation_dir=config["functional_annotation_dir"]
     threads: config["eggnog"]["threads"]
     resources:
@@ -270,7 +293,7 @@ rule coverm_abundance:
     input:
         r1_clean=config["fastp_dir"] + "/{sample}/{sample}_1P.fq.gz",
         r2_clean=config["fastp_dir"] + "/{sample}/{sample}_2P.fq.gz",
-        reference=config["cdhit_dir"] + "/{sample}/{sample}_cluster_rep_seq.fasta"
+        reference=rules.mmseqs_clustering.output.cluster_rep
     output:
         tpm=config["coverm_dir"] + "/{sample}/coverm_{sample}.TPM.tsv"
     params:
