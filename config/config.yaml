@@ -8,7 +8,8 @@ regular_memory: "3900" # MB
 # Sample information
 samples:
   - sample1
-  - sample2
+
+  #- sample2
 
 # Directory structure
 input_dir: "0_rawdata"
@@ -24,7 +25,7 @@ log_dir: "log"
 
 # Tool parameters
 fastp:
-  threads: 16
+  threads: 4
   qualified_quality_phred: 20
   length_required: 20
   runtime: 120  # minutes
@@ -33,7 +34,7 @@ spades:
   threads: 16
   memory: 256
   kmers: "21,33,55,77,101,121"
-  runtime: 1440  # minutes (24 hours)
+  runtime: 3440  # minutes (24 hours)
 
 reformat_scaffolds:
   min_length: 300
@@ -54,7 +55,7 @@ mmseqs2:
 diamond:
   threads: 14
   evalue: 1e-5
-  max_hits: 10
+  max_hits: 1
   runtime: 480  # minutes
 
 eggnog:
@@ -84,12 +85,6 @@ databases:
   gtdb_database: "/data/database/GTDB_214.1_diamond/GTDB_database"
   eggnog_data_dir: "/data/database/eggnog"
 
-# Sample groups for different analysis
-sample_groups:
-  lab:
-    - sample1
-  osen:
-    - sample2
 
 # Environment/conda setup
 conda_envs:
