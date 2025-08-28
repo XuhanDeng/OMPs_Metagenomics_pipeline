@@ -2,26 +2,23 @@ configfile: "config/config.yaml"
 
 rule all:
     input:
-        expand("{gtdb_dir}/{group}/annotation.txt", 
-               gtdb_dir=config["gtdb_dir"], 
+        expand(config["gtdb_dir"] + "/{group}/annotation.txt", 
                group=config["sample_groups"].keys()),
-        expand("{functional_dir}/{group}_eggnogresult.emapper.annotations", 
-               functional_dir=config["functional_annotation_dir"], 
+        expand(config["functional_annotation_dir"] + "/{group}_eggnogresult.emapper.annotations", 
                group=config["sample_groups"].keys()),
-        expand("{coverm_dir}/{group}/coverm_{sample}.TPM.tsv", 
-               coverm_dir=config["coverm_dir"],
+        expand(config["coverm_dir"] + "/{group}/coverm_{sample}.TPM.tsv", 
                group=config["sample_groups"].keys(),
                sample=config["samples"])
 
 rule fastp_quality_control:
     input:
-        r1="{input_dir}/{sample}/{sample}.R1.fq.gz",
-        r2="{input_dir}/{sample}/{sample}.R2.fq.gz"
+        r1=config["input_dir"] + "/{sample}/{sample}.R1.fq.gz",
+        r2=config["input_dir"] + "/{sample}/{sample}.R2.fq.gz"
     output:
-        r1_clean="{fastp_dir}/{sample}/{sample}_1P.fq.gz",
-        r2_clean="{fastp_dir}/{sample}/{sample}_2P.fq.gz",
-        html="{fastp_dir}/{sample}/{sample}.fastp.html",
-        json="{fastp_dir}/{sample}/{sample}.fastp.json"
+        r1_clean=config["fastp_dir"] + "/{sample}/{sample}_1P.fq.gz",
+        r2_clean=config["fastp_dir"] + "/{sample}/{sample}_2P.fq.gz",
+        html=config["fastp_dir"] + "/{sample}/{sample}.fastp.html",
+        json=config["fastp_dir"] + "/{sample}/{sample}.fastp.json"
     params:
         threads=config["fastp"]["threads"],
         qualified_quality_phred=config["fastp"]["qualified_quality_phred"],
@@ -58,12 +55,12 @@ rule spades_assembly:
         r1=rules.fastp_quality_control.output.r1_clean,
         r2=rules.fastp_quality_control.output.r2_clean
     output:
-        contigs="{spades_dir}/{sample}/contigs.fasta"
+        contigs=config["spades_dir"] + "/{sample}/contigs.fasta"
     params:
         threads=config["spades"]["threads"],
         memory=config["spades"]["memory"],
         kmers=config["spades"]["kmers"],
-        outdir="{spades_dir}/{sample}",
+        outdir=config["spades_dir"] + "/{sample}",
         spades_dir=config["spades_dir"],
         log_dir=config["log_dir"]
     threads: config["spades"]["threads"]
@@ -76,7 +73,7 @@ rule spades_assembly:
     conda:
         "envs/spades.yaml"
     log:
-        "{log_dir}/2_spades/{sample}_spades.txt"
+        "log/2_spades/{sample}_spades.txt"
     shell:
         """
         mkdir -p {params.log_dir}/2_spades
@@ -95,8 +92,8 @@ rule reformat_scaffolds:
     input:
         contigs=rules.spades_assembly.output.contigs
     output:
-        reformated="{reformated_scaffolds_dir}/{sample}/{sample}_reformated.fa",
-        renaming="{reformated_scaffolds_dir}/{sample}/{sample}_renaming.tsv"
+        reformated=config["reformated_scaffolds_dir"] + "/{sample}/{sample}_reformated.fa",
+        renaming=config["reformated_scaffolds_dir"] + "/{sample}/{sample}_renaming.tsv"
     params:
         min_length=config["reformat_scaffolds"]["min_length"],
         reformated_scaffolds_dir=config["reformated_scaffolds_dir"]
@@ -124,9 +121,9 @@ rule prodigal_orfs:
     input:
         reformated=rules.reformat_scaffolds.output.reformated
     output:
-        gff="{prodigal_dir}/{sample}/gff/{sample}.gff",
-        faa="{prodigal_dir}/{sample}/amino/{sample}.faa",
-        ffn="{prodigal_dir}/{sample}/nucl/{sample}.nucl.ffn"
+        gff=config["prodigal_dir"] + "/{sample}/gff/{sample}.gff",
+        faa=config["prodigal_dir"] + "/{sample}/amino/{sample}.faa",
+        ffn=config["prodigal_dir"] + "/{sample}/nucl/{sample}.nucl.ffn"
     params:
         mode=config["prodigal"]["mode"],
         prodigal_dir=config["prodigal_dir"]
@@ -162,8 +159,8 @@ rule merge_sequences:
                                             prodigal_dir=config["prodigal_dir"],
                                             sample=get_samples_for_group(wildcards.group))
     output:
-        nucl_merged="{cdhit_dir}/{group}/{group}_nucl_merged.fasta",
-        protein_merged="{cdhit_dir}/{group}/{group}_protein_merge.fasta"
+        nucl_merged=config["cdhit_dir"] + "/{group}/{group}_nucl_merged.fasta",
+        protein_merged=config["cdhit_dir"] + "/{group}/{group}_protein_merge.fasta"
     params:
         cdhit_dir=config["cdhit_dir"]
     threads: config["merge_sequences"]["threads"]
@@ -184,15 +181,15 @@ rule mmseqs_clustering:
     input:
         nucl_merged=rules.merge_sequences.output.nucl_merged
     output:
-        cluster_rep="{cdhit_dir}/{group}/{group}_cluster_rep_seq.fasta",
-        cluster_all="{cdhit_dir}/{group}/{group}_cluster_all_seqs.fasta",
-        cluster_tsv="{cdhit_dir}/{group}/{group}_cluster.tsv"
+        cluster_rep=config["cdhit_dir"] + "/{group}/{group}_cluster_rep_seq.fasta",
+        cluster_all=config["cdhit_dir"] + "/{group}/{group}_cluster_all_seqs.fasta",
+        cluster_tsv=config["cdhit_dir"] + "/{group}/{group}_cluster.tsv"
     params:
         min_seq_id=config["mmseqs2"]["min_seq_id"],
         coverage=config["mmseqs2"]["coverage"],
         threads=config["mmseqs2"]["threads"],
-        prefix="{cdhit_dir}/{group}/{group}_cluster",
-        tmp_dir="{cdhit_dir}/{group}/tmp"
+        prefix=config["cdhit_dir"] + "/{group}/{group}_cluster",
+        tmp_dir=config["cdhit_dir"] + "/{group}/tmp"
     threads: config["mmseqs2"]["threads"]
     resources:
         mem_mb_per_cpu=config["regular_memory"],
@@ -217,8 +214,8 @@ rule extract_sequences:
         cluster_rep=rules.mmseqs_clustering.output.cluster_rep,
         protein_merged=rules.merge_sequences.output.protein_merged
     output:
-        unigene_id="{cdhit_dir}/{group}/unigene_id.txt",
-        unigene_protein="{cdhit_dir}/{group}/unigene_protein.fasta"
+        unigene_id=config["cdhit_dir"] + "/{group}/unigene_id.txt",
+        unigene_protein=config["cdhit_dir"] + "/{group}/unigene_protein.fasta"
     threads: config["extract_sequences"]["threads"]
     resources:
         mem_mb_per_cpu=config["regular_memory"],
@@ -238,7 +235,7 @@ rule gtdb_annotation:
     input:
         protein=rules.extract_sequences.output.unigene_protein
     output:
-        annotation="{gtdb_dir}/{group}/annotation.txt"
+        annotation=config["gtdb_dir"] + "/{group}/annotation.txt"
     params:
         gtdb_db=config["databases"]["gtdb_diamond"],
         threads=config["diamond"]["threads"],
@@ -271,12 +268,12 @@ rule eggnog_annotation:
     input:
         protein=rules.extract_sequences.output.unigene_protein
     output:
-        annotations="{functional_annotation_dir}/{group}_eggnogresult.emapper.annotations"
+        annotations=config["functional_annotation_dir"] + "/{group}_eggnogresult.emapper.annotations"
     params:
         threads=config["eggnog"]["threads"],
         evalue=config["eggnog"]["evalue"],
         data_dir=config["databases"]["eggnog_data_dir"],
-        output_prefix="{functional_annotation_dir}/{group}_eggnogresult",
+        output_prefix=config["functional_annotation_dir"] + "/{group}_eggnogresult",
         functional_annotation_dir=config["functional_annotation_dir"]
     threads: config["eggnog"]["threads"]
     resources:
@@ -301,14 +298,13 @@ rule eggnog_annotation:
 
 rule coverm_abundance:
     input:
-        r1_clean="{fastp_dir}/{sample}/{sample}_1P.fq.gz",
-        r2_clean="{fastp_dir}/{sample}/{sample}_2P.fq.gz",
-        reference=lambda wildcards: "{cdhit_dir}/{group}/{group}_cluster_rep_seq.fasta".format(
-            cdhit_dir=config["cdhit_dir"],
+        r1_clean=config["fastp_dir"] + "/{sample}/{sample}_1P.fq.gz",
+        r2_clean=config["fastp_dir"] + "/{sample}/{sample}_2P.fq.gz",
+        reference=lambda wildcards: config["cdhit_dir"] + "/{group}/{group}_cluster_rep_seq.fasta".format(
             group=[g for g, samples in config["sample_groups"].items() if wildcards.sample in samples][0]
         )
     output:
-        tpm="{coverm_dir}/{group}/coverm_{sample}.TPM.tsv"
+        tpm=config["coverm_dir"] + "/{group}/coverm_{sample}.TPM.tsv"
     params:
         threads=config["coverm"]["threads"],
         min_read_percent_identity=config["coverm"]["min_read_percent_identity"],
