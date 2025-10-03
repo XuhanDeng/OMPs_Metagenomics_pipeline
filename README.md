@@ -7,16 +7,18 @@ A comprehensive Snakemake workflow for metagenomics analysis, specifically desig
 This pipeline implements a complete metagenomics workflow including:
 
 - **Quality Control**: Read trimming and filtering with fastp
-- **Assembly**: Metagenomic assembly with SPAdes  
+- **Assembly**: Metagenomic assembly with SPAdes
 - **Scaffold Processing**: Length filtering and reformatting with anvi'o
-- **Gene Prediction**: ORF identification with Prodigal
+- **Gene Prediction**: ORF identification with Pyrodigal
 - **Gene Clustering**: Non-redundant gene catalog creation with MMSeqs2
-- **Taxonomic Annotation**: Species assignment with GTDB
+- **Taxonomic Annotation**: Species assignment with GTDB and Kraken2/Bracken
 - **Functional Annotation**: Protein function assignment with EggNOG
 - **Abundance Quantification**: Gene abundance calculation with CoverM
+- **Taxonomic Profiling**: Read-based taxonomic classification with Kraken2/Bracken/Taxpasta
 
 ## Pipeline Workflow
 
+### Main Assembly-Based Workflow
 ```
 Raw Reads (FASTQ)
     ↓
@@ -26,7 +28,7 @@ SPAdes (Metagenomic Assembly)
     ↓
 anvi'o (Scaffold Reformatting)
     ↓
-Prodigal (ORF Prediction)
+Pyrodigal (ORF Prediction)
     ↓
 MMSeqs2 (Gene Clustering)
     ↓
@@ -37,6 +39,26 @@ Sequence Extraction
 └─────────────────────┴─────────────────────┘
     ↓
 CoverM (Abundance Quantification)
+```
+
+### Read-Based Taxonomic Profiling (Snakefile_kraken.smk)
+```
+Quality-Controlled Reads (fastp)
+    ↓
+Kraken2 (Taxonomic Classification)
+    ↓
+Bracken (Abundance Estimation at Multiple Levels)
+    ├── Phylum
+    ├── Class
+    ├── Order
+    ├── Family
+    ├── Genus
+    └── Species
+    ↓
+┌─────────────────────────┬──────────────────────────┐
+│  Merge Reports (Pandas) │  Taxpasta (with Lineage) │
+│  97_braken_report/      │  96_taxpasta/            │
+└─────────────────────────┴──────────────────────────┘
 ```
 
 ## Features
@@ -79,12 +101,35 @@ conda activate snakemake
 Download required databases and update paths in `config/config.yaml`:
 
 ```bash
-# GTDB database (example paths - adjust for your system)
-# /data/database/GTDB_214.1_diamond/protein_faa_reps/GTDB214_dimond.dmnd
-# /data/database/GTDB_214.1_diamond/GTDB_database
+# GTDB database
+wget https://data.gtdb.ecogenomic.org/releases/latest/
 
 # EggNOG database
-# /data/database/eggnog
+download_eggnog_data.py -y
+
+# Kraken2 database (for taxonomic profiling)
+kraken2-build --standard --db /path/to/kraken2_db
+
+# Build Bracken database
+bracken-build -d /path/to/kraken2_db -t 32 -k 35 -l 150
+
+# NCBI Taxonomy database (for Taxpasta)
+cd /path/to/taxa_DB
+wget https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump.tar.gz
+wget https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump.tar.gz.md5
+md5sum --check taxdump.tar.gz.md5
+mkdir taxdump
+tar -C taxdump -xzf taxdump.tar.gz
+```
+
+Update paths in `config/config.yaml`:
+```yaml
+databases:
+  gtdb_diamond: "/scratch/qou/database/GTDB_214.1_diamond/protein_faa_reps/GTDB214_dimond.dmnd"
+  gtdb_database: "/scratch/qou/database/GTDB_214.1_diamond/GTDB_database"
+  eggnog_data_dir: "/scratch/qou/database/eggnog"
+  kraken2_db: "/scratch/qou/database/kraken2"
+  taxa_db: "/scratch/qou/database/taxa_DB/taxdump"
 ```
 
 ## Configuration
@@ -111,16 +156,13 @@ sample_groups:
 ### Directory Structure
 Organize your input data as follows:
 ```
-0_rawdata/
-├── sample1/
-│   ├── sample1.R1.fq.gz
-│   └── sample1.R2.fq.gz
-├── sample2/
-│   ├── sample2.R1.fq.gz
-│   └── sample2.R2.fq.gz
-└── sample3/
-    ├── sample3.R1.fq.gz
-    └── sample3.R2.fq.gz
+result/0_rawdata/
+├── sample1.R1.fq.gz
+├── sample1.R2.fq.gz
+├── sample2.R1.fq.gz
+├── sample2.R2.fq.gz
+├── sample3.R1.fq.gz
+└── sample3.R2.fq.gz
 ```
 
 ### Resource Configuration
@@ -128,24 +170,37 @@ Adjust computational resources in `config/config.yaml`:
 
 ```yaml
 # Common resources
-account: "your-slurm-account"
+account: "research-ceg-wm"
 regular_partition: "compute"
 regular_memory: "3900"  # MB per CPU
 
 # Tool-specific parameters
 fastp:
-  threads: 16
+  threads: 4
   runtime: 120  # minutes
 
 spades:
-  threads: 16
+  threads: 32
   memory: 256  # GB total
-  runtime: 1440  # minutes
+  runtime: 1200  # minutes
+
+kraken2:
+  threads: 40
+  confidence: 0.1
+  runtime: 1200  # minutes
+
+bracken:
+  threads: 30
+  kmer_length: 35
+  read_length: 150
+  runtime: 600  # minutes
 ```
 
 ## Usage
 
-### Local Execution (Small datasets)
+### Main Workflow (Assembly-based)
+
+#### Local Execution (Small datasets)
 ```bash
 # Dry run to check workflow
 snakemake --dry-run
@@ -154,13 +209,26 @@ snakemake --dry-run
 snakemake --use-conda --cores 8
 ```
 
-### SLURM Cluster Execution
+#### SLURM Cluster Execution
 ```bash
 # Create SLURM profile (first time only)
 cookiecutter https://github.com/Snakemake-Profiles/slurm.git
 
 # Execute on cluster
 snakemake --profile slurm --use-conda
+```
+
+### Kraken2/Bracken Taxonomic Profiling
+
+```bash
+# Dry run
+snakemake -s Snakefile_kraken.smk --dry-run
+
+# Local execution
+snakemake -s Snakefile_kraken.smk --use-conda --cores 40
+
+# SLURM cluster execution
+snakemake -s Snakefile_kraken.smk --profile slurm --use-conda
 ```
 
 ### Target Specific Outputs
@@ -179,7 +247,9 @@ snakemake --use-conda --cores 8 all
 
 ## Output Structure
 
+### Main Assembly-Based Pipeline
 ```
+result/
 ├── 1_fastp/                    # Quality-controlled reads
 │   └── {sample}/
 │       ├── {sample}_1P.fq.gz
@@ -193,12 +263,12 @@ snakemake --use-conda --cores 8 all
 │   └── {sample}/
 │       ├── {sample}_reformated.fa
 │       └── {sample}_renaming.tsv
-├── 4_prodigal/                 # Gene predictions
+├── 4_pyrodigal/                # Gene predictions
 │   └── {sample}/
 │       ├── gff/{sample}.gff
 │       ├── amino/{sample}.faa
 │       └── nucl/{sample}.nucl.ffn
-├── 5_cdhit/                    # Gene clustering results
+├── 5_mmseqs2/                  # Gene clustering results
 │   └── {group}/
 │       ├── {group}_cluster_rep_seq.fasta
 │       ├── unigene_id.txt
@@ -209,28 +279,79 @@ snakemake --use-conda --cores 8 all
 ├── 7_GTDB/                     # Taxonomic annotation
 │   └── {group}/
 │       └── annotation.txt
-├── 8_functional_annotation/    # Functional annotation
-│   └── {group}_eggnogresult.emapper.annotations
-└── log/                        # Log files
-    └── 2_spades/
-        └── {sample}_spades.txt
+└── 8_functional_annotation/    # Functional annotation
+    └── {group}_eggnogresult.emapper.annotations
+```
+
+### Kraken2/Bracken Taxonomic Profiling (Snakefile_kraken.smk)
+```
+result/
+├── 99_kraken2/                 # Kraken2 and Bracken outputs
+│   └── {sample}/
+│       ├── {sample}_kraken2.report
+│       ├── {sample}_kraken2.out
+│       ├── {sample}_bracken_phylum.report
+│       ├── {sample}_bracken_classes.report
+│       ├── {sample}_bracken_orders.report
+│       ├── {sample}_bracken_family.report
+│       ├── {sample}_bracken_genus.report
+│       └── {sample}_bracken_species.report
+├── 98_bracken_kraken/          # Organized reports by taxonomy level
+│   ├── krakenstykle/
+│   │   ├── P/                  # Phylum level
+│   │   ├── C/                  # Class level
+│   │   ├── O/                  # Order level
+│   │   ├── F/                  # Family level
+│   │   ├── G/                  # Genus level
+│   │   └── S/                  # Species level
+│   └── brackenstykle/
+│       └── [same structure]
+├── 97_braken_report/           # Merged reports across samples
+│   ├── phylum_rel_abund.csv
+│   ├── phylum_read_numbers.csv
+│   ├── classes_rel_abund.csv
+│   ├── classes_read_numbers.csv
+│   ├── orders_rel_abund.csv
+│   ├── orders_read_numbers.csv
+│   ├── family_rel_abund.csv
+│   ├── family_read_numbers.csv
+│   ├── genus_rel_abund.csv
+│   ├── genus_read_numbers.csv
+│   ├── species_rel_abund.csv
+│   └── species_read_numbers.csv
+└── 96_taxpasta/                # Taxpasta merged with lineage
+    └── report_bracken_with_lineage.tsv
+
+log/                            # Log files
+├── kraken2/
+├── bracken/
+└── taxpasta/
 ```
 
 ## Tool Versions
 
 The pipeline uses the following software versions (defined in `envs/` directory):
 
+### Main Assembly-Based Pipeline
 | Tool | Version | Purpose |
 |------|---------|---------|
 | fastp | 1.0.1 | Quality control |
 | SPAdes | 4.2.0 | Metagenomic assembly |
 | anvi'o | 7 | Scaffold processing |
-| Prodigal | 2.6.3 | Gene prediction |
+| Pyrodigal | latest | Gene prediction |
 | MMSeqs2 | 17.b804f | Gene clustering |
 | seqkit | 2.10.1 | Sequence manipulation |
 | Diamond | 2.1.13 | Sequence alignment |
 | EggNOG-mapper | 2.1.13 | Functional annotation |
 | CoverM | 0.7.0 | Abundance quantification |
+
+### Taxonomic Profiling Pipeline
+| Tool | Purpose | Environment |
+|------|---------|-------------|
+| Kraken2 | Taxonomic classification | kraken2.yaml |
+| Bracken | Abundance re-estimation | kraken2.yaml |
+| Pandas | Merge profiling reports | pandas.yaml |
+| Taxpasta | Standardize & merge with lineage | taxpasta.yaml |
 
 ## Customization
 
