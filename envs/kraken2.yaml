@@ -1,6 +1,7 @@
 channels:
   - conda-forge
   - bioconda
+  - defaults
 dependencies:
-  - spades=4.2.0
-  - seqkit
+  - kraken2=2.1.3
+  - bracken=3.1

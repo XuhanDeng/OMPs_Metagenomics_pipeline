@@ -1,0 +1,7 @@
+name: pyrodigal
+channels:
+  - bioconda
+  - conda-forge
+  - defaults
+dependencies:
+  - pyrodigal

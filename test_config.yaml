@@ -1,0 +1,97 @@
+# Test configuration for debugging spades_assembly_and_reformat rule
+
+# Common resources
+account: "research-ceg-wm"
+regular_partition: "compute"
+regular_memory: "3900" # MB
+
+# Test with just one sample
+samples:
+  - test_sample
+
+# Directory structure - using test directories
+input_dir: "test_data/0_rawdata"
+fastp_dir: "test_data/1_fastp"
+spades_dir: "test_data/2_spades_result"
+reformated_scaffolds_dir: "test_data/3_reformated_scaffolds"
+prodigal_dir: "test_data/4_prodigal"
+cdhit_dir: "test_data/5_cdhit"
+coverm_dir: "test_data/6_coverm"
+gtdb_dir: "test_data/7_GTDB"
+functional_annotation_dir: "test_data/8_functional_annotation"
+log_dir: "test_log"
+
+# Reduced resource requirements for testing
+fastp:
+  threads: 2
+  qualified_quality_phred: 20
+  length_required: 20
+  runtime: 30  # minutes
+
+spades:
+  threads: 4  # Reduced from 16
+  memory: 8   # Reduced from 356GB to 8GB
+  kmers: "21,33,55"  # Reduced k-mer set
+  runtime: 60  # Reduced from 3440 minutes
+  parition: "compute"  # Changed from memory
+
+reformat_scaffolds:
+  min_length: 300
+  threads: 1
+  runtime: 10  # minutes
+
+prodigal:
+  mode: "meta"
+  threads: 1
+  runtime: 30  # minutes
+
+mmseqs2:
+  min_seq_id: 0.9
+  coverage: 0.9
+  threads: 4  # Reduced
+  runtime: 60  # minutes
+
+diamond:
+  threads: 4  # Reduced
+  evalue: 1e-5
+  max_hits: 1
+  runtime: 60  # minutes
+
+eggnog:
+  threads: 4  # Reduced
+  evalue: 1e-5
+  runtime: 60  # minutes
+
+coverm:
+  threads: 4  # Reduced
+  min_read_percent_identity: 90
+  min_read_aligned_percent: 50
+  min_covered_fraction: 0.5
+  contig_end_exclusion: 10
+  runtime: 60  # minutes
+
+merge_sequences:
+  threads: 1
+  runtime: 10  # minutes
+
+extract_sequences:
+  threads: 1
+  runtime: 10  # minutes
+
+# Database paths (adjust these paths according to your system)
+databases:
+  gtdb_diamond: "/data/database/GTDB_214.1_diamond/protein_faa_reps/GTDB214_dimond.dmnd"
+  gtdb_database: "/data/database/GTDB_214.1_diamond/GTDB_database"
+  eggnog_data_dir: "/data/database/eggnog"
+
+# Environment/conda setup
+conda_envs:
+  fastp: "fastp"
+  anvio: "anvio-7.1"
+  prodigal: "prodigal"
+  mmseq2: "mmseq2"
+  diamond: "diomand"
+  eggnog: "eggnog"
+  coverm: "coverm"
+  seqkit: "seqkit"
+  base: "base"

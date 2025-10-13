@@ -4,7 +4,9 @@ configfile: "config/config.yaml"
 
 rule all:
     input:
-        "result/96_taxpasta/report_bracken_with_lineage.tsv"
+        "result/96_taxpasta/report_bracken_with_lineage.tsv",
+        expand("result/99_pcoa_plots/{level}_pcoa.svg",
+               level=["phylum", "classes", "orders", "family", "genus", "species"])
 
 '''
 rule all:
@@ -182,42 +184,38 @@ rule all:
 #         done
 #         """
 
-rule merge_bracken_report:
-    input:
-        dir="result/98_bracken_kraken"
-    output:
-        dir=directory("result/97_braken_report")
-    conda:
-        "envs/pandas.yaml"
-    params:
-        outdir=lambda wildcards, output: os.path.abspath(output.dir)
-    shell:
-        """
-        mkdir -p {params.outdir} && \
-        python script/merge_profiling_reports.py -i {input.dir}/krakenstykle/P -o {params.outdir}/phylum && \
-        python script/merge_profiling_reports.py -i {input.dir}/krakenstykle/C -o {params.outdir}/classes && \
-        python script/merge_profiling_reports.py -i {input.dir}/krakenstykle/O -o {params.outdir}/orders && \
-        python script/merge_profiling_reports.py -i {input.dir}/krakenstykle/F -o {params.outdir}/family && \
-        python script/merge_profiling_reports.py -i {input.dir}/krakenstykle/G -o {params.outdir}/genus && \
-        python script/merge_profiling_reports.py -i {input.dir}/krakenstykle/S -o {params.outdir}/species
-        """
-
-# abortion rule taxpasta_merge_bracken:
+# rule merge_bracken_report:
 #     input:
-#         reports=expand(config["kraken2_dir"] + "/{sample}/{sample}_bracken_species.report", sample=config["samples"])
+#         dir="result/98_bracken_kraken"
 #     output:
-#         merged="result/96_taxpasta/report_bracken_with_lineage.tsv"
-#     log:
-#         log=config["log_dir"] + "/taxpasta/taxpasta_merge.log",
-#         err=config["log_dir"] + "/taxpasta/taxpasta_merge.err"
+#         dir=directory("result/97_braken_report")
 #     conda:
-#         "envs/taxpasta.yaml"
+#         "envs/pandas.yaml"
 #     params:
-#         taxonomy=config["databases"]["taxa_db"]
+#         outdir=lambda wildcards, output: os.path.abspath(output.dir)
 #     shell:
 #         """
-#         mkdir -p $(dirname {output.merged}) && \
-#         mkdir -p $(dirname {log.log}) && \
-#         taxpasta merge -p bracken -o {output.merged} --taxonomy {params.taxonomy} --add-lineage {input.reports} > {log.log} 2> {log.err}
+#         mkdir -p {params.outdir} && \
+#         python script/merge_profiling_reports.py -i {input.dir}/krakenstykle/P -o {params.outdir}/phylum && \
+#         python script/merge_profiling_reports.py -i {input.dir}/krakenstykle/C -o {params.outdir}/classes && \
+#         python script/merge_profiling_reports.py -i {input.dir}/krakenstykle/O -o {params.outdir}/orders && \
+#         python script/merge_profiling_reports.py -i {input.dir}/krakenstykle/F -o {params.outdir}/family && \
+#         python script/merge_profiling_reports.py -i {input.dir}/krakenstykle/G -o {params.outdir}/genus && \
+#         python script/merge_profiling_reports.py -i {input.dir}/krakenstykle/S -o {params.outdir}/species
 #         """
+
+rule pcoa_analysis:
+    input:
+        csv="result/97_braken_report/{level}_rel_abund.csv"
+    output:
+        svg="result/99_pcoa_plots/{level}_pcoa.svg"
+    conda:
+        "envs/R.yaml"
+    log:
+        "log/pcoa/{level}_pcoa.log"
+    shell:
+        """
+        mkdir -p result/99_pcoa_plots log/pcoa && \
+        Rscript script/pcoa_analysis.R {input.csv} {output.svg} > {log} 2>&1
+        """
 
