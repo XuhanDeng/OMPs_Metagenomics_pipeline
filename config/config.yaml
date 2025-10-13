@@ -59,9 +59,11 @@ spades_dir: "result/2_spades_result"
 reformated_scaffolds_dir: "result/3_reformated_scaffolds"
 pyrodigal_dir: "result/4_pyrodigal"
 mmseqs2_dir: "result/5_mmseqs2"
-coverm_dir: "result/6_coverm"
-gtdb_dir: "result/7_GTDB"
-functional_annotation_dir: "result/8_functional_annotation"
+
+
+functional_annotation_dir: "result/7_functional_annotation"
+kofam_dir: "result/8_kofam_annotation"
+coverm_dir: "result/9_coverm"
 log_dir: "log"
 kraken2_dir: "result/99_kraken2"
 
@@ -94,6 +96,7 @@ mmseqs2:
   coverage: 0.9
   threads: 48
   runtime: 7000  # minutes
+  memory: "187200M"
 
 diamond:
   threads: 14
@@ -102,9 +105,17 @@ diamond:
   runtime: 480  # minutes
 
 eggnog:
-  threads: 18
+  threads: 12
   evalue: 1e-5
-  runtime: 720  # minutes
+  runtime: 7200  # minutes (120 hours max, use conservative 116 hours)
+  chunk_size: 1000000  # number of sequences per chunk (~57 chunks for 114M sequences)
+  threads_per_job: 12  # threads for each parallel job (57 jobs * 24 = 1368 CPUs total)
+
+kofamscan:
+  threads: 32
+  evalue: 1e-5
+  runtime: 7200  # minutes
+  chunk_parts: 10  # split into 64 files
 
 coverm:
   threads: 8
@@ -114,13 +125,32 @@ coverm:
   contig_end_exclusion: 10
   runtime: 240  # minutes
 
+bowtie2:
+  threads: 8
+  runtime: 7200  # minutes (5 days)
+  mem_mb_per_cpu: 3900
+  partition: "memory"
+
+bowtie2_index:
+  threads: 4
+  runtime: 1440  # minutes (1 day)
+  mem_mb_per_cpu: 3900
+
+coverm_abundance:
+  threads: 4
+  min_read_percent_identity: 95
+  min_read_aligned_percent: 90
+  contig_end_exclusion: 0
+  runtime: 1440  # minutes (1 day)
+  mem_mb_per_cpu: 3900
+
 merge_sequences:
   threads: 1
   runtime: 30  # minutes
 
 extract_sequences:
-  threads: 1
-  runtime: 60  # minutes
+  threads: 16
+  runtime: 260  # minutes
 
 kraken2:
   threads: 40
@@ -137,9 +167,11 @@ bracken:
 databases:
   gtdb_diamond: "/scratch/qou/database/GTDB_214.1_diamond/protein_faa_reps/GTDB214_dimond.dmnd"
   gtdb_database: "/scratch/qou/database/GTDB_214.1_diamond/GTDB_database"
-  eggnog_data_dir: "/scratch/qou/database/eggnog"
+  eggnog_data_dir: "/scratch/qou/database/eggnog_database"
   kraken2_db: "/scratch/qou/database/kraken2"
   taxa_db: "/scratch/qou/database/taxa_DB/taxdump"
+  kofam_list: "/scratch/qou/database/kofam/ko_list"  # KOfam profiles and ko_list
+  kofam_profiles: "/scratch/qou/database/kofam/profiles"
 
 
 # Environment/conda setup
