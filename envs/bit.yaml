@@ -1,0 +1,7 @@
+name: bit
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - bioconda::bit>=1.8

@@ -1,2 +1,17 @@
 .snakemake/
 0_rawdata/
+output/
+result/
+log/
+
+# Old/deprecated Snakemake files (keep local only)
+Snakefile
+Snakefile_coverm.smk
+Snakefile_coverm copy.smk
+Snakefile_database.smk
+Snakefile_kraken.smk
+Snakefile_merged.smk
+database_setup.sh
+test_*.smk
+test_*.yaml
+*.delate

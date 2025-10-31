@@ -4,6 +4,7 @@
 account: "research-ceg-wm"
 regular_partition: "compute"
 regular_memory: "3900" # MB
+read_length: 150  # Read length in bp for coverage calculation
 
 # Sample information
 samples:
@@ -64,8 +65,17 @@ mmseqs2_dir: "result/5_mmseqs2"
 functional_annotation_dir: "result/7_functional_annotation"
 kofam_dir: "result/8_kofam_annotation"
 coverm_dir: "result/9_coverm"
+salmon_dir: "result/9_salmon"
 log_dir: "log"
 kraken2_dir: "result/99_kraken2"
+
+
+script:
+  split_fasta: "script/split_fasta.py"
+  merge_fasta: "script/merge_fasta.py"
+  filter_kofam: "script/filter_kofam.py"
+
+
 
 # Tool parameters
 fastp:
@@ -76,7 +86,7 @@ fastp:
   
 spades:
   threads: 32
-  memory: 256
+  memory: 128
   kmers: "21,33,55,77,101,121"
   runtime: 1200  # minutes (24 hours)
   parition: "compute"
@@ -118,7 +128,7 @@ kofamscan:
   chunk_parts: 10  # split into 64 files
 
 coverm:
-  threads: 8
+  threads: 4
   min_read_percent_identity: 90
   min_read_aligned_percent: 50
   min_covered_fraction: 0.5
@@ -128,13 +138,14 @@ coverm:
 bowtie2:
   threads: 8
   runtime: 7200  # minutes (5 days)
-  mem_mb_per_cpu: 3900
+  mem_mb_per_cpu: 16250
   partition: "memory"
 
 bowtie2_index:
-  threads: 4
-  runtime: 1440  # minutes (1 day)
-  mem_mb_per_cpu: 3900
+  threads: 12
+  runtime: 2440  # minutes (1 day)
+  mem_mb_per_cpu: 20300
+  partition: "memory"
 
 coverm_abundance:
   threads: 4
@@ -143,6 +154,11 @@ coverm_abundance:
   contig_end_exclusion: 0
   runtime: 1440  # minutes (1 day)
   mem_mb_per_cpu: 3900
+
+# Envipath analysis parameters
+envipath:
+  top_n_genes: 50  # Number of top genes to keep per drug for heatmap analysis
+
 
 merge_sequences:
   threads: 1
